@@ -89,20 +89,24 @@
 <div id="dark-overlay"></div>
 
 <!-- ══════════════════════════ MARQUEES ══════════════════════════ -->
-<div class="marquee-wrap" data-in="0.14" data-out="0.46" data-speed="-20">
-  <div class="marquee-text">Systèmes&nbsp;·&nbsp;Réseaux&nbsp;·&nbsp;Sécurité&nbsp;·&nbsp;Systèmes&nbsp;·&nbsp;Réseaux&nbsp;·&nbsp;Sécurité&nbsp;·&nbsp;</div>
+<!-- Une seule occurrence de la phrase, sans répétition : le script la
+     mesure, l'ajuste à la fenêtre, et la fait glisser dans le jeu qui lui
+     reste au lieu de la faire boucler — une bande qui boucle ne montre
+     jamais la phrase en entier. Les deux bandes glissent en sens opposé. -->
+<div class="marquee-wrap" data-in="0.14" data-out="0.46" data-dir="left">
+  <div class="marquee-text"><span class="marquee-item">Systèmes&nbsp;·&nbsp;Réseaux&nbsp;·&nbsp;Sécurité</span></div>
 </div>
-<div class="marquee-wrap marquee-low" data-in="0.80" data-out="1.01" data-speed="-34">
-  <div class="marquee-text">Supervision&nbsp;·&nbsp;Détection&nbsp;·&nbsp;GitOps&nbsp;·&nbsp;Supervision&nbsp;·&nbsp;Détection&nbsp;·&nbsp;GitOps&nbsp;·&nbsp;</div>
+<div class="marquee-wrap marquee-low" data-in="0.87" data-out="1.01" data-dir="right">
+  <div class="marquee-text"><span class="marquee-item">Supervision&nbsp;·&nbsp;Détection&nbsp;·&nbsp;GitOps</span></div>
 </div>
 
 <!-- ══════════════════════════ TRAVERSÉE ══════════════════════════ -->
 <div id="scroll-container">
 
   <section class="scroll-section section-content align-left"
-           data-enter="18" data-leave="30" data-animation="slide-left">
+           data-enter="18" data-leave="31" data-animation="slide-left">
     <div class="section-inner">
-      <span class="section-label">001 / Le châssis</span>
+      <span class="section-label"><b class="section-num">001</b>Le châssis</span>
       <h2 class="section-heading">Tout ce que j’administre tient dans ce châssis.</h2>
       <p class="section-body">
         Trois ans d’alternance sur des parcs clients en production. Chaque
@@ -114,9 +118,9 @@
   </section>
 
   <section class="scroll-section section-content align-right"
-           data-enter="31" data-leave="42" data-animation="clip-reveal">
+           data-enter="32" data-leave="45" data-animation="clip-reveal">
     <div class="section-inner">
-      <span class="section-label">002 / Le socle</span>
+      <span class="section-label"><b class="section-num">002</b>Le socle</span>
       <h2 class="section-heading">Ce qui ne se voit que lorsqu’il tombe.</h2>
       <p class="section-body">
         Serveurs physiques et virtuels installés selon le besoin métier,
@@ -128,9 +132,9 @@
   </section>
 
   <section class="scroll-section section-content align-left"
-           data-enter="43" data-leave="54" data-animation="rotate-in">
+           data-enter="46" data-leave="59" data-animation="rotate-in">
     <div class="section-inner">
-      <span class="section-label">003 / Le lien</span>
+      <span class="section-label"><b class="section-num">003</b>Le lien</span>
       <h2 class="section-heading">Du parc client au tunnel chiffré.</h2>
       <p class="section-body">
         Commutateurs Aruba, Zyxel et UniFi, pare-feu Sophos, segmentation en
@@ -142,9 +146,9 @@
   </section>
 
   <section class="scroll-section section-content align-right"
-           data-enter="55" data-leave="66" data-animation="scale-up">
+           data-enter="60" data-leave="73" data-animation="scale-up">
     <div class="section-inner">
-      <span class="section-label">004 / La sonde</span>
+      <span class="section-label"><b class="section-num">004</b>La sonde</span>
       <h2 class="section-heading">L’alerte précède l’appel.</h2>
       <p class="section-body">
         Un cluster K3s collecte les métriques, les journaux et les alertes de
@@ -157,9 +161,13 @@
   </section>
 
   <section class="scroll-section section-stats"
-           data-enter="68" data-leave="79" data-animation="stagger-up">
+           data-enter="74" data-leave="86" data-animation="stagger-up">
+    <!-- Même enveloppe que les autres sections : sans elle, les repères
+         n'héritaient ni des marges ni du voile de lecture sur téléphone,
+         et les chiffres se retrouvaient coupés au bord de l'écran. -->
+    <div class="section-inner stats-inner">
     <div class="stats-head">
-      <span class="section-label">005 / Repères</span>
+      <span class="section-label"><b class="section-num">005</b>Repères</span>
     </div>
     <div class="stats-grid">
       <div class="stat">
@@ -179,12 +187,13 @@
         <span class="stat-label">dépôts publics<em>mon code est consultable</em></span>
       </div>
     </div>
+    </div>
   </section>
 
   <section class="scroll-section section-content align-left"
-           data-enter="80" data-leave="89" data-animation="slide-right">
+           data-enter="87" data-leave="100" data-animation="slide-right" data-persist="true">
     <div class="section-inner">
-      <span class="section-label">006 / La règle</span>
+      <span class="section-label"><b class="section-num">006</b>La règle</span>
       <h2 class="section-heading">Bagage offensif, cible défensive.</h2>
       <p class="section-body">
         Je sais exécuter l’attaque à la main — injection SQL, inclusion de
@@ -196,22 +205,15 @@
     </div>
   </section>
 
-  <section class="scroll-section section-content align-right"
-           data-enter="90" data-leave="100" data-animation="fade-up" data-persist="true">
-    <div class="section-inner">
-      <span class="section-label">007 / À vous</span>
-      <h2 class="section-heading">La baie est démontée.<br>Le détail commence.</h2>
-      <p class="section-body">
-        Sept équipements, sept domaines. Ouvrez-les un par un.
-      </p>
-      <a class="cta-button" href="#baie" data-scroll>
-        <span>Explorer la baie</span>
-        <svg viewBox="0 0 24 10" width="24" height="10" aria-hidden="true">
-          <path d="M0 5H22M17 1L22 5L17 9" fill="none" stroke="currentColor" stroke-width="1.2"/>
-        </svg>
-      </a>
-    </div>
-  </section>
+  <!-- Il y avait ici une section « 007 / À vous » dont le titre annonçait
+       « Sept équipements, sept domaines » — c'est-à-dire, mot pour mot, le
+       titre du chapitre suivant, à un écran de distance. Retirée : le
+       chapitre 007 tient la même promesse, avec la baie interactive sous
+       la main plutôt qu'un bouton pour y aller.
+
+       La section précédente court désormais jusqu'au bout de la course
+       (`data-leave="100"` et `data-persist`), pour que la fin de la
+       décomposition ne se fasse pas sur un écran vide. -->
 
 </div><!-- /#scroll-container -->
 
@@ -221,7 +223,7 @@
   <!-- ─────────── BAIE INTERACTIVE ─────────── -->
   <section class="chapter" id="baie">
     <div class="chapter-head">
-      <span class="section-label">008 / La baie, unité par unité</span>
+      <span class="section-label"><b class="section-num">007</b>La baie, unité par unité</span>
       <h2 class="chapter-title">Sept équipements,<br>sept domaines.</h2>
       <p class="chapter-lede">
         La baie n’est pas un décor. Chaque repère désigne un équipement réel,
@@ -262,7 +264,7 @@
   <!-- ─────────── PARCOURS ─────────── -->
   <section class="chapter chapter-tight" id="parcours">
     <div class="chapter-head">
-      <span class="section-label">009 / Parcours</span>
+      <span class="section-label"><b class="section-num">008</b>Parcours</span>
       <h2 class="chapter-title">Du code au cluster,<br>sans jamais quitter la production.</h2>
       <p class="chapter-lede">
         Cinq ans d’alternance : d’abord écrire les applications, puis tenir
@@ -360,7 +362,7 @@
   <!-- ─────────── PROJET PHARE ─────────── -->
   <section class="chapter chapter-alt" id="projets">
     <div class="chapter-head">
-      <span class="section-label">010 / Projet principal</span>
+      <span class="section-label"><b class="section-num">009</b>Projet principal</span>
       <h2 class="chapter-title">High&nbsp;Light</h2>
       <p class="chapter-lede">
         Réseau social où les joueurs mettent leurs meilleures actions en
@@ -421,7 +423,7 @@
   <!-- ─────────── AUTRES PROJETS ─────────── -->
   <section class="chapter chapter-tight">
     <div class="chapter-head">
-      <span class="section-label">011 / Travaux</span>
+      <span class="section-label"><b class="section-num">010</b>Travaux</span>
       <h2 class="chapter-title">Audits, mémoire<br>et laboratoire.</h2>
     </div>
 
@@ -514,7 +516,7 @@
   <!-- ─────────── DÉPÔTS ─────────── -->
   <section class="chapter chapter-tight" id="depots">
     <div class="chapter-head">
-      <span class="section-label">012 / Code publié</span>
+      <span class="section-label"><b class="section-num">011</b>Code publié</span>
       <h2 class="chapter-title">Sept dépôts publics.</h2>
       <p class="chapter-lede">Uniquement des dépôts ouverts : les projets contenant des secrets dans leur historique restent fermés et ne figurent pas ici.</p>
     </div>
@@ -523,7 +525,7 @@
 
   <!-- ─────────── CONTACT ─────────── -->
   <section class="chapter chapter-alt chapter-contact" id="contact">
-    <span class="section-label">013 / Contact</span>
+    <span class="section-label"><b class="section-num">012</b>Contact</span>
     <h2 class="contact-title">Disponible en CDI<br>à partir du 2&nbsp;décembre&nbsp;2026.</h2>
     <p class="contact-open">
       Ouvert à l’administration systèmes &amp; réseaux, à l’infrastructure &amp;

@@ -31,7 +31,10 @@
   --brass:     #C9A24E;
   --brass-dim: rgba(201, 162, 78, .32);
 
-  --marquee:   rgba(236, 234, 230, .055);
+  /* Remonté de .055 : la bande passe DEVANT la baie (z-index 15 contre
+     10), et à 5,5 % les lettres qui la croisaient perdaient tout contraste
+     — le milieu de la phrase disparaissait. */
+  --marquee:   rgba(236, 234, 230, .1);
   --ghost:     rgba(236, 234, 230, .035);
   --hot-bg:    rgba(11, 12, 14, .55);
   --hot-line:  rgba(236, 234, 230, .45);
@@ -46,6 +49,25 @@
   --font-mono:    'DM Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
   --ease: cubic-bezier(.16, 1, .3, 1);
+
+  /* ── Géométrie de la scène ──
+     La baie est dimensionnée par la HAUTEUR de la fenêtre (96vh au ratio
+     716/1280), alors que le texte des couloirs était calé sur la LARGEUR.
+     Sur un écran large et court, la baie devient étroite et centrée
+     pendant que le texte reste collé au bord gauche : un vide énorme
+     s'ouvre entre les deux. Ces variables donnent au texte la même
+     référence qu'à la baie, pour qu'il la suive au lieu de la fuir. */
+  --rack-w: min(calc(96vh * 716 / 1280), 92vw);
+  --corridor-gap: clamp(1.6rem, 3.4vw, 5rem);
+  --page-pad: clamp(1.4rem, 6vw, 6.5rem);
+
+  /* Voile de lecture des sections sur petit écran, défini une fois :
+     il sert au texte des chapitres comme aux repères chiffrés. */
+  --veil: linear-gradient(to bottom,
+    rgba(var(--scrim), 0) 0%,
+    rgba(var(--scrim), .86) 20%,
+    rgba(var(--scrim), .96) 42%,
+    rgba(var(--scrim), .99) 100%);
 }
 
 * { box-sizing: border-box; }
@@ -96,6 +118,23 @@ a { color: inherit; }
   font-weight: 400;
   letter-spacing: .22em;
   text-transform: uppercase;
+  color: var(--brass);
+}
+
+/* Le numéro de section, sorti du texte pour pouvoir être composé à part.
+   Il était noyé dans le libellé (« 001 / Le châssis », tout en mono à
+   .68rem) et ne se voyait pas. */
+.section-num {
+  display: inline-block;
+  margin-right: .85em;
+  font-family: var(--font-display);
+  font-variation-settings: 'wdth' 112;
+  font-weight: 700;
+  font-size: 1.85em;
+  line-height: 1;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+  vertical-align: -.14em;
   color: var(--brass);
 }
 
@@ -478,15 +517,28 @@ a { color: inherit; }
   font-family: var(--font-display);
   font-variation-settings: 'wdth' 120;
   font-weight: 800;
-  /* Assez petit pour qu'un cycle entier tienne à l'écran : à 10vw on
-     ne lisait qu'un fragment de la phrase. */
+  /* Valeur de repli seulement. La taille réelle est mesurée puis posée en
+     ligne par `initMarquees()` : une taille en vw ne peut pas savoir
+     combien de place prend « Systèmes · Réseaux · Sécurité · » dans la
+     police réellement chargée, et c'est pour ça qu'à 5,4vw on n'en lisait
+     qu'un fragment. Le script dimensionne la phrase pour qu'un cycle
+     entier tienne à l'écran, dans n'importe quel format. */
   font-size: 5.4vw;
   line-height: 1;
   letter-spacing: -.01em;
   text-transform: uppercase;
+  /* Lettres creuses plutôt que pleines. La bande passe devant la baie
+     (z-index 15 contre 10) : un aplat à faible opacité disparaissait dès
+     qu'il croisait une partie claire de la scène — c'est le milieu de la
+     phrase qu'on ne voyait plus. Un contour tient sur les deux fonds à la
+     fois, tout en restant aussi discret qu'un aplat. */
   color: var(--marquee);
+  -webkit-text-stroke: 1px rgba(236, 234, 230, .2);
   will-change: transform;
 }
+/* Un seul exemplaire, jamais dupliqué : voir le défilement borné dans
+   `initMarquees()`. */
+.marquee-item { display: inline-block; white-space: nowrap; }
 .marquee-wrap.off { visibility: hidden; }
 
 /* ═══════════════════════ SECTIONS DE SCROLL ═══════════════════════ */
@@ -505,44 +557,39 @@ a { color: inherit; }
 }
 .scroll-section a { pointer-events: auto; }
 
-/* Zones latérales : la baie occupe le tiers central de l'écran. */
-.align-left  { padding-left: 6vw;  padding-right: 66vw; }
-.align-right { padding-left: 66vw; padding-right: 6vw; text-align: right; }
+/* Zones latérales : la baie occupe le centre, le texte vit dans les
+   couloirs qu'elle laisse de part et d'autre.
+
+   Le bord intérieur du couloir est calculé à partir de la baie elle-même
+   (`--rack-w`), pas d'un pourcentage de la largeur : les deux restent
+   solidaires quelle que soit la forme de la fenêtre. Le `min(…, 72vw)`
+   garantit qu'il reste toujours au moins ~28vw de couloir, même quand la
+   baie devient très large par rapport à la fenêtre.
+
+   Le bloc est ensuite CENTRÉ dans son couloir (`margin-inline: auto`) au
+   lieu d'être plaqué au bord de l'écran : c'est ce qui corrigeait le
+   texte « trop à gauche » sur les écrans larges et courts, où le couloir
+   fait plusieurs centaines de pixels de plus que le texte. */
+.align-left {
+  padding-left: var(--page-pad);
+  padding-right: min(calc(50vw + var(--rack-w) / 2 + var(--corridor-gap)), 72vw);
+}
+.align-right {
+  padding-left: min(calc(50vw + var(--rack-w) / 2 + var(--corridor-gap)), 72vw);
+  padding-right: var(--page-pad);
+  text-align: right;
+}
+/* Largeur en rem, pas en `ch` : le `ch` se mesure sur la police du
+   conteneur, pas sur celle du titre, et donnait une colonne bien trop
+   étroite pour les grands titres. */
 .align-left  .section-inner,
-.align-right .section-inner { max-width: 30vw; }
+.align-right .section-inner { max-width: min(100%, 38rem); margin-inline: auto; }
 .align-right .section-body { margin-left: auto; }
-
-/* Fenêtre peu large : la baie prend proportionnellement plus de place. */
-@media (max-aspect-ratio: 3/2) {
-  .align-left  { padding-right: 70vw; }
-  .align-right { padding-left: 70vw; }
-  .align-left .section-inner,
-  .align-right .section-inner { max-width: 26vw; }
-}
-
-.cta-button {
-  display: inline-flex;
-  align-items: center;
-  gap: .9rem;
-  margin-top: 2.4rem;
-  padding: .95rem 1.7rem;
-  border: 1px solid var(--brass);
-  border-radius: 999px;
-  font-family: var(--font-mono);
-  font-size: .7rem;
-  letter-spacing: .18em;
-  text-transform: uppercase;
-  text-decoration: none;
-  color: var(--brass);
-  transition: background .45s var(--ease), color .45s var(--ease);
-}
-.cta-button:hover { background: var(--brass); color: var(--hot-fg); }
-.cta-button svg { transition: transform .45s var(--ease); }
-.cta-button:hover svg { transform: translateX(5px); }
 
 /* ─── Repères chiffrés ─── */
 
-.section-stats { flex-direction: column; justify-content: center; padding: 0 6vw; }
+.section-stats { flex-direction: column; justify-content: center; padding: 0 var(--page-pad); }
+.stats-inner { width: 100%; }
 .stats-head { width: 100%; max-width: 1400px; margin: 0 auto 3.5rem; }
 
 .stats-grid {
@@ -554,21 +601,78 @@ a { color: inherit; }
   gap: 3vw;
 }
 .stat {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: .8rem;
   padding-top: 1.4rem;
-  border-top: 1px solid var(--rule);
 }
+/* Le filet du haut est un élément à part, et non un `border-top`, pour
+   pouvoir se tracer de gauche à droite quand la section entre. Un
+   `border` ne s'anime pas ; une barre en `scaleX`, si. Elle est pilotée
+   par une classe posée sur la section, donc identique dans tous les
+   formats — c'est l'animation qui manquait aux repères chiffrés. */
+.stat::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background: var(--rule);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 1s var(--ease);
+}
+.section-stats.lit .stat::before { transform: scaleX(1); }
+.section-stats .stat:nth-child(2)::before { transition-delay: .12s; }
+.section-stats .stat:nth-child(3)::before { transition-delay: .24s; }
+.section-stats .stat:nth-child(4)::before { transition-delay: .36s; }
 .stat-number {
+  /* Une ligne de fenêtres à chiffres, pas un simple texte : chaque chiffre
+     roule dans la sienne. Voir `buildCounters()`. */
+  display: flex;
+  align-items: flex-start;
+  /* Les cellules sont plus hautes que le cadratin pour contenir le glyphe
+     entier ; on rattrape ce surplus ici pour que le bloc garde la même
+     assise qu'avant, entre le filet et le libellé. */
+  margin: -.09em 0;
   font-family: var(--font-display);
   font-variation-settings: 'wdth' 112;
   font-weight: 700;
   font-size: clamp(3rem, 6.6vw, 7rem);
-  line-height: .9;
+  line-height: 1;
   letter-spacing: -.04em;
   font-variant-numeric: tabular-nums;
   color: var(--brass);
+}
+/* Hauteur d'une cellule, et donc de la fenêtre.
+
+   Surtout pas `1em`. À `line-height: 1`, la zone de texte d'Archivo mesure
+   ~1,084 em : le chiffre débordait de 4 px au-dessus et au-dessous de sa
+   cellule, et la fenêtre laissait voir une tranche des chiffres voisins —
+   deux demi-chiffres empilés au lieu d'un seul. La cellule doit contenir
+   le glyphe entier, pas seulement son cadratin.
+
+   Toute police a son propre débord : en changeant de police, mesurer la
+   zone de texte réelle avant de retoucher cette valeur. */
+:root { --digit-cell: 1.18em; }
+
+/* La fenêtre ne laisse voir qu'un caractère de la colonne à la fois. */
+.stat-digit {
+  display: block;
+  height: var(--digit-cell);
+  overflow: hidden;
+}
+.stat-digit-track { display: block; will-change: transform; }
+/* Hauteur identique à celle de la fenêtre : c'est ce qui permet de viser
+   une cellule en pourcentage plutôt qu'en pixels. Le `line-height` égal
+   centre le glyphe dans sa cellule. */
+.stat-digit-cell,
+.stat-fixed {
+  display: block;
+  height: var(--digit-cell);
+  line-height: var(--digit-cell);
 }
 .stat-label {
   font-family: var(--font-mono);
@@ -1432,6 +1536,60 @@ a { color: inherit; }
 
 /* ═══════════════════════════ RESPONSIVE ═══════════════════════════ */
 
+/* ─── Traversée sur grand écran ───
+
+   Sur téléphone, le texte des sections repose sur un voile pleine largeur
+   et occupe l'écran : il s'impose de lui-même. Sur ordinateur il vit dans
+   un couloir, à même la vidéo, et le numéro de section y était noyé dans
+   une ligne de mono de .68rem — on ne le voyait pas.
+
+   Un voile local avait été essayé derrière le bloc : à même la scène, il
+   se lisait comme un rectangle aux bords nets, exactement le défaut qu'on
+   avait mis du temps à effacer sur la vidéo. Le couloir est déjà sombre,
+   le texte s'y lit ; c'est donc la composition du repère, et elle seule,
+   qui lui donne sa présence. */
+@media (min-width: 821px) {
+  /* Le numéro passe au-dessus du nom et prend sa vraie taille : c'est lui
+     qui donne le repère dans la traversée. */
+  .scroll-section .section-num {
+    display: block;
+    margin: 0 0 .5rem;
+    padding-top: .9rem;
+    border-top: 1px solid var(--brass-dim);
+    /* Borné par la HAUTEUR autant que par la largeur : sur un portable
+       court (1440 × 700), un chiffre calé sur la seule largeur ajoutait
+       assez de hauteur au bloc pour en pousser la dernière ligne hors de
+       l'écran. */
+    font-size: clamp(2.1rem, min(3.4vw, 5vh), 3.8rem);
+  }
+  .scroll-section .section-label {
+    font-size: .72rem;
+    letter-spacing: .24em;
+    color: var(--fg-2);
+  }
+}
+
+/* ─── Très grands écrans ───
+
+   Les blocs de texte ont une largeur de lecture maximale : au-delà d'une
+   soixantaine de caractères par ligne, on ne lit plus, on décroche. Ils
+   cessent donc de grandir vers 1 200 px… dans un cadre qui, lui, va
+   jusqu'à 1 560. Le vide se creusait alors entièrement à DROITE, et toute
+   la page semblait poussée vers la gauche.
+
+   On recentre donc le cadre de ces blocs sur leur largeur réellement
+   utile : la place en trop repart en marges, également des deux côtés.
+   Les grilles qui savent quoi faire de la largeur — les quatre piliers,
+   l'explorateur de la baie — gardent le cadre large. */
+@media (min-width: 1700px) {
+  .chapter-head,
+  .timeline-wrap,
+  .langs-strip,
+  .works,
+  .repos { max-width: 1240px; margin-inline: auto; }
+  .chapter-head { margin-bottom: 6vh; }
+}
+
 @media (max-width: 1180px) {
   .rack-explorer { grid-template-columns: 1fr; gap: 5vh; }
   .rack-stage { position: static; }
@@ -1477,12 +1635,15 @@ a { color: inherit; }
   .section-inner {
     width: 100%;
     padding: 24vh 6vw 8vh;
-    background: linear-gradient(to bottom,
-      rgba(var(--scrim), 0) 0%,
-      rgba(var(--scrim), .86) 20%,
-      rgba(var(--scrim), .96) 42%,
-      rgba(var(--scrim), .99) 100%);
+    background: var(--veil);
   }
+  /* Les repères chiffrés passent par la même enveloppe que le reste :
+     avant, la section n'en avait pas et le `padding: 0 !important`
+     ci-dessus lui retirait ses marges — les chiffres se retrouvaient
+     coupés au bord gauche de l'écran, sans fond lisible. */
+  .section-stats { justify-content: flex-end; }
+  .stats-inner { padding: 20vh 6vw 8vh; }
+  .stats-head { margin-bottom: 2.4rem; }
   .align-right .section-body { margin-left: 0; }
   .section-heading { font-size: clamp(1.9rem, 8vw, 2.7rem); }
   .section-body { max-width: none; }
@@ -1501,7 +1662,8 @@ a { color: inherit; }
         rgba(34, 37, 45, 0) 100%),
       var(--bg);
   }
-  .marquee-text { font-size: 11vw; }
+  /* Plus de taille imposée ici : `initMarquees()` mesure la phrase et la
+     cale sur la largeur réelle, écran par écran. */
 
   .chapter { padding: 9vh 6vw; }
   .chapter-alt { padding-left: 6vw; padding-right: 6vw; }
@@ -1543,5 +1705,6 @@ a { color: inherit; }
   }
   .reveal { opacity: 1; transform: none; }
   .canvas-wrap { opacity: 1; transform: none; }
+  .stat::before { transform: scaleX(1); }
   .scroll-cue svg, .availability i, .tl-badge i { animation: none; }
 }

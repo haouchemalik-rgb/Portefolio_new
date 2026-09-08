@@ -158,9 +158,9 @@ const FRAME_W      = 716;   /* définition native de la source : ne pas réduire
 const FRAME_H      = 1280;
 const STRIDE       = IS_SMALL ? 2 : 1;   /* mémoire des téléphones */
 
-/* La décomposition doit s'achever AU MOMENT de « la baie est démontée »,
-   pas à mi-parcours : la dernière section entre à 90 % de la course.
-   1.08 place la dernière vue à ~92,6 %. */
+/* La décomposition doit s'achever pendant la dernière section, pas à
+   mi-parcours : celle-ci entre à 87 % de la course et y reste jusqu'au
+   bout. 1.08 place la dernière vue à ~92,6 %. */
 const FRAME_SPEED  = 1.08;
 
 const indices = [];
@@ -184,28 +184,79 @@ const ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
 canvas.width  = FRAME_W;
 canvas.height = FRAME_H;
 
-let currentFrame = -1, wantedFrame = 0, rafId = 0;
+let shownFrame = -1, shownMix = -1;
 
-/* Les vues sont opaques et couvrent tout le canvas : pas de clearRect,
-   un seul drawImage sans mise à l'échelle. C'est le tracé le moins cher
-   possible, et c'est tout ce qui se passe pendant le défilement. */
-function paint() {
-  rafId = 0;
-  const img = frames[wantedFrame];
-  if (!img || wantedFrame === currentFrame) return;
-  currentFrame = wantedFrame;
-  ctx.drawImage(img, 0, 0);
+/* Fondu entre deux vues consécutives.
+
+   103 vues réparties sur 900vh, ce sont ~80 px de défilement par vue : la
+   décomposition avance donc par paliers visibles, quelle que soit la
+   fluidité du défilement lui-même. Aucun réglage de scroll ne peut
+   corriger ça — il n'y a tout simplement pas d'image à montrer entre
+   deux. On en fabrique une : la vue suivante est superposée à la
+   précédente avec l'opacité du reste, et la course redevient continue.
+
+   Le coût est un second `drawImage` par image d'animation. On le paie sur
+   ordinateur, pas sur téléphone (où STRIDE ne garde déjà qu'une vue sur
+   deux, et où le budget de tracé est le plus serré).
+
+   Ce fondu n'ajoute AUCUN mouvement : il ne fait qu'adoucir celui que le
+   défilement produit déjà. Il n'a donc pas à être coupé par
+   `prefers-reduced-motion`, contrairement à ce qui était fait ici.
+
+   Les vues sont opaques et couvrent tout le canvas : pas de clearRect,
+   et la superposition se comporte comme un fondu simple. */
+const BLEND = !IS_SMALL;
+
+/* En deçà, le fondu ne se voit pas et ne mérite pas un tracé de plus. */
+const MIX_STEP = .02;
+
+/* La vue voulue peut ne pas être encore arrivée : la séquence se charge
+   maintenant en fond, pendant que le site est déjà utilisable. On recule
+   alors sur la dernière vue disponible plutôt que de laisser le canvas
+   figé sur ce qu'il affichait. Le décrochage se voit à peine, et il se
+   résorbe de lui-même dès que le chargement rattrape. */
+function nearestLoaded(i) {
+  if (frames[i]) return i;
+  for (let d = 1; d < FRAME_COUNT; d++) {
+    if (i - d >= 0 && frames[i - d]) return i - d;
+    if (i + d < FRAME_COUNT && frames[i + d]) return i + d;
+  }
+  return -1;
 }
 
-function requestFrame(i) {
-  wantedFrame = i;
-  if (!rafId) rafId = requestAnimationFrame(paint);
+function paintAt(pos) {
+  let i = Math.max(0, Math.min(FRAME_COUNT - 1, Math.floor(pos)));
+  if (!frames[i]) {
+    i = nearestLoaded(i);
+    if (i < 0) return;
+    pos = i;
+  }
+  const a = frames[i];
+
+  const j = Math.min(FRAME_COUNT - 1, i + 1);
+  const mix = BLEND && j !== i && frames[j] ? pos - i : 0;
+
+  if (i === shownFrame && Math.abs(mix - shownMix) < MIX_STEP) return;
+
+  ctx.drawImage(a, 0, 0);
+  if (mix > MIX_STEP) {
+    ctx.globalAlpha = mix;
+    ctx.drawImage(frames[j], 0, 0);
+    ctx.globalAlpha = 1;
+  }
+  shownFrame = i;
+  shownMix = mix;
 }
 
+/* La scène est rendue depuis le ticker de GSAP, c'est-à-dire déjà à
+   l'intérieur d'une image d'animation. Y demander une NOUVELLE image pour
+   dessiner reportait chaque tracé à l'image suivante : une image de
+   retard, en permanence. On dessine donc sur place. */
 function drawNow(i) {
   const img = frames[i];
   if (!img) return;
-  currentFrame = i;
+  shownFrame = i;
+  shownMix = 0;
   ctx.drawImage(img, 0, 0);
 }
 
@@ -247,32 +298,57 @@ function loadImage(slot) {
   });
 }
 
+/* La barre mesure ce qu'on attend vraiment — les vues d'amorçage — et non
+   la séquence entière : le reste se charge une fois le site ouvert, et
+   compter dessus aurait laissé le visiteur devant un compteur qui monte
+   alors que la page est déjà prête. */
 let loaded = 0;
 function tick() {
   loaded++;
-  const p = Math.round((loaded / FRAME_COUNT) * 100);
+  const p = Math.min(100, Math.round((loaded / BOOT_FRAMES) * 100));
   loaderBar.style.width = p + '%';
   loaderPct.textContent = p + '%';
+}
+
+/* Vues nécessaires avant d'ouvrir le site. Le reste arrive derrière.
+
+   La page attendait les 103 vues — plusieurs mégaoctets — avant de
+   montrer quoi que ce soit, alors que la traversée n'en a besoin
+   d'aucune : le visiteur arrive sur le titre, et il lui faut plusieurs
+   secondes avant de descendre assez pour que la baie commence à se
+   démonter. Les vues suivantes ont tout le temps d'arriver pendant ce
+   temps-là. On n'attend donc que de quoi tenir le premier écran. */
+const BOOT_FRAMES = Math.min(10, FRAME_COUNT);
+
+/* Chargement de fond : par petits paquets, dans l'ordre de la course, pour
+   que les vues arrivent toujours devant le visiteur plutôt que derrière.
+   Assez large pour saturer une bonne connexion, assez étroit pour ne pas
+   noyer une mauvaise. */
+const BACKGROUND_BATCH = 6;
+
+async function loadRest() {
+  for (let i = BOOT_FRAMES; i < FRAME_COUNT; i += BACKGROUND_BATCH) {
+    const slice = [];
+    for (let j = i; j < Math.min(i + BACKGROUND_BATCH, FRAME_COUNT); j++) slice.push(j);
+    await Promise.all(slice.map(loadImage));
+  }
 }
 
 async function preload() {
   document.body.classList.add('is-loading');
 
-  const head = Math.min(8, FRAME_COUNT);
-  await Promise.all(Array.from({ length: head }, (_, i) => loadImage(i).then(tick)));
+  await Promise.all(
+    Array.from({ length: BOOT_FRAMES }, (_, i) => loadImage(i).then(tick))
+  );
   drawNow(0);
-
-  const rest = [];
-  for (let i = head; i < FRAME_COUNT; i++) rest.push(i);
-  const BATCH = 10;
-  for (let i = 0; i < rest.length; i += BATCH) {
-    await Promise.all(rest.slice(i, i + BATCH).map(s => loadImage(s).then(tick)));
-  }
 
   loader.classList.add('done');
   document.body.classList.remove('is-loading');
   setTimeout(() => { loader.style.display = 'none'; }, 950);
   start();
+
+  /* Sans await : le site est déjà rendu à la main du visiteur. */
+  loadRest();
 }
 
 /* ───────────────────────── Défilement ───────────────────────── */
@@ -295,8 +371,15 @@ function initScroll() {
        un glissé plutôt qu'une série d'à-coups. 0.1 est la valeur
        généralement recommandée pour une molette physique ; descendre
        vers 0.07 lisse davantage mais ralentit la prise en compte du
-       geste, monter vers 0.15 réagit plus vite mais lisse moins. */
-    lerp: 0.01,
+       geste, monter vers 0.15 réagit plus vite mais lisse moins.
+
+       0.01 avait été essayé pour « lisser au maximum » : le glissé était
+       lisse, mais la page continuait sur sa lancée bien après l'arrêt de
+       la molette et mettait un temps visible à repartir. Le lissage se
+       fait maintenant en deux temps — celui-ci, franc, pour suivre le
+       geste, puis SCENE_LERP plus bas pour polir le rendu de la scène. */
+    lerp: 0.085,
+    wheelMultiplier: 0.9,
     smoothWheel: true,
     syncTouch: false,
   });
@@ -331,7 +414,7 @@ function buildSection(section) {
   const enter   = parseFloat(section.dataset.enter) / 100;
   const leave   = parseFloat(section.dataset.leave) / 100;
   const kids    = section.querySelectorAll(
-    '.section-label, .section-heading, .section-body, .section-meta, .cta-button, .stat'
+    '.section-label, .section-heading, .section-body, .section-meta, .stat'
   );
 
   const tl = gsap.timeline({ paused: true });
@@ -364,41 +447,170 @@ function buildSection(section) {
 
 /* ───────────────────────── Compteurs ───────────────────────── */
 
+/* Nombre de passages complets 0→9 avant que le chiffre ne se pose. */
+const ROLL_CYCLES = 3;
+
+/* En mouvement réduit, le compteur n'est pas supprimé : il est raccourci.
+
+   `prefers-reduced-motion` vise les mouvements amples et prolongés, ceux
+   qui déclenchent des troubles vestibulaires — parallaxes, zooms,
+   translations plein écran. Un chiffre qui bascule dans une fenêtre d'un
+   caractère de haut n'en fait pas partie. Le couper entièrement, comme
+   c'était le cas, allait au-delà de ce que le réglage demande et rendait
+   la section muette sur toute machine où il est actif — sans que rien ne
+   l'explique au visiteur.
+
+   La variante réduite est donc plus courte, pas plus pauvre : **un** tour
+   complet au lieu de trois.
+
+   Zéro tour avait été essayé, et c'était trop peu : chaque chiffre allait
+   droit à sa valeur, donc parcourait une distance différente — neuf
+   cellules pour un « 9 », une seule pour un « 1 », aucune pour un « 0 »
+   déjà en place. La moitié des chiffres sautaient au lieu de rouler, et
+   l'ensemble paraissait haché. Un tour complet donne à tous une course
+   comparable (dix à dix-neuf cellules) : c'est ce qui fait la fluidité,
+   bien plus que la durée. */
+const ROLL_CYCLES_REDUCED = 1;
+
+/* Les repères se comptaient de 0 à leur valeur en interpolant le nombre
+   lui-même. Sur des valeurs aussi basses — 3, 9, 2, 16 — l'affichage ne
+   traversait que trois ou quatre états en 1,8 s : il n'y avait rien à
+   voir, le chiffre semblait simplement apparaître.
+
+   Chaque chiffre est donc monté sur sa propre colonne 0-9, répétée, qui
+   défile derrière une fenêtre d'un caractère de haut et s'arrête sur la
+   bonne valeur. Le mouvement ne dépend plus de l'écart entre 0 et la
+   cible : « 02 » roule autant que « 16 ».
+
+   Le déplacement est exprimé en `yPercent` : la colonne est faite de
+   cellules de hauteur égale, donc amener la cellule d'indice i en haut de
+   la fenêtre revient toujours à la décaler de i/total de sa propre
+   hauteur — aucune mesure en pixels, rien à recalculer au
+   redimensionnement ni après le chargement de la police. */
 function buildCounters(section) {
   return Array.from(section.querySelectorAll('.stat-number')).map(el => {
-    const target   = parseFloat(el.dataset.value);
     const decimals = parseInt(el.dataset.decimals || '0', 10);
     const pad      = parseInt(el.dataset.pad || '0', 10);
-    const fmt = v => {
-      let s = decimals ? v.toFixed(decimals) : String(Math.round(v));
-      if (pad) s = s.padStart(pad, '0');
-      return s;
-    };
-    if (REDUCED) { el.textContent = fmt(target); return null; }
-    el.textContent = fmt(0);
-    const state = { v: 0 };
-    return gsap.to(state, {
-      v: target, duration: 1.8, ease: 'power1.out', paused: true,
-      onUpdate() { el.textContent = fmt(state.v); },
+    let text = parseFloat(el.dataset.value).toFixed(decimals);
+    if (pad) {
+      const [whole, frac] = text.split('.');
+      text = whole.padStart(pad, '0') + (frac ? '.' + frac : '');
+    }
+
+    const cycles = REDUCED ? ROLL_CYCLES_REDUCED : ROLL_CYCLES;
+    const cells  = (cycles + 1) * 10;
+    const tracks = [];
+    el.textContent = '';
+
+    for (const ch of text) {
+      if (ch < '0' || ch > '9') {
+        /* Séparateur décimal : il ne roule pas. */
+        const fixed = document.createElement('span');
+        fixed.className = 'stat-fixed';
+        fixed.textContent = ch;
+        el.appendChild(fixed);
+        continue;
+      }
+      const window_ = document.createElement('span');
+      window_.className = 'stat-digit';
+      const track = document.createElement('span');
+      track.className = 'stat-digit-track';
+      for (let i = 0; i < cells; i++) {
+        const cell = document.createElement('span');
+        cell.className = 'stat-digit-cell';
+        cell.textContent = String(i % 10);
+        track.appendChild(cell);
+      }
+      window_.appendChild(track);
+      el.appendChild(window_);
+      tracks.push({ track, stop: cycles * 10 + Number(ch) });
+    }
+
+    if (!tracks.length) return null;
+
+    const tl = gsap.timeline({ paused: true });
+    tracks.forEach(({ track, stop }, i) => {
+      tl.fromTo(track,
+        { yPercent: 0 },
+        /* `power2.out` plutôt que `power3.out` : la décélération est moins
+           brutale, la colonne ne se fige pas d'un coup en fin de course. */
+        { yPercent: -100 * stop / cells, duration: REDUCED ? 1 : 1.5, ease: 'power2.out' },
+        /* Les chiffres se posent de gauche à droite, comme on les lit ;
+           décalage resserré en mouvement réduit, où la course est plus
+           courte. */
+        i * (REDUCED ? .07 : .12));
     });
+    return tl;
   }).filter(Boolean);
 }
 
 /* ───────────────────── Bandeaux horizontaux ───────────────────── */
 
+/* Part de la largeur de la fenêtre qu'occupe la phrase. Ce qui reste est
+   le jeu dans lequel la bande glisse au défilement : plus la phrase est
+   petite, plus elle voyage. En dessous de 1, elle est toujours lisible en
+   entier — c'est tout l'objet du réglage. */
+const MARQUEE_FIT = IS_SMALL ? .9 : .66;
+const MARQUEE_MIN = 15;   /* px : en dessous, le bandeau ne se lit plus */
+const MARQUEE_MAX = 150;
+
 function initMarquees(refs) {
   document.querySelectorAll('.marquee-wrap').forEach(wrap => {
     const text  = wrap.querySelector('.marquee-text');
-    const speed = parseFloat(wrap.dataset.speed) || -25;
+    const item  = wrap.querySelector('.marquee-item');
+    const dir   = wrap.dataset.dir === 'right' ? 1 : -1;
     const inP   = parseFloat(wrap.dataset.in);
     const outP  = parseFloat(wrap.dataset.out);
 
-    if (!REDUCED) {
-      gsap.to(text, {
-        xPercent: speed, ease: 'none',
+    /* Une taille en vw ne sait pas ce que mesure la phrase dans la police
+       réellement chargée. On la mesure donc, à une taille de référence,
+       puis on met à l'échelle pour qu'elle tienne dans la fenêtre. */
+    let itemW = 0, slack = 0;
+    let tween = null;
+
+    const fit = () => {
+      const vw = window.innerWidth;
+      text.style.transform = '';
+      text.style.fontSize = '100px';
+      const ref = item.getBoundingClientRect().width || 1;
+      const size = Math.min(MARQUEE_MAX, Math.max(MARQUEE_MIN, (MARQUEE_FIT * vw) / (ref / 100)));
+      text.style.fontSize = size + 'px';
+      itemW = item.getBoundingClientRect().width;
+      slack = Math.max(0, vw - itemW);
+    };
+
+    fit();
+
+    /* Défilement BORNÉ, et non en boucle.
+
+       Une bande qui boucle ne montre la phrase en entier que si celle-ci
+       fait au plus la moitié de la fenêtre : au-delà, on voit toujours la
+       fin d'un exemplaire et le début du suivant, jamais une phrase
+       complète. C'était le cas ici même après l'avoir mise à l'échelle —
+       elle occupait 84 % de la largeur.
+
+       Un seul exemplaire, qui glisse dans le jeu qui lui reste
+       (`slack`), n'a pas ce défaut : il est lisible en entier à tout
+       instant, et il bouge quand même avec le défilement. */
+    const build = () => {
+      if (REDUCED || !itemW) return;
+      if (tween) { tween.scrollTrigger && tween.scrollTrigger.kill(); tween.kill(); }
+      const from = dir < 0 ? slack : 0;
+      const to   = dir < 0 ? 0 : slack;
+      gsap.set(text, { x: from });
+      tween = gsap.to(text, {
+        x: to, ease: 'none',
         scrollTrigger: { trigger: container, start: 'top top', end: 'bottom bottom', scrub: true },
       });
-    }
+    };
+
+    build();
+
+    let resizeId = 0;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeId);
+      resizeId = setTimeout(() => { fit(); build(); }, 180);
+    });
     refs.push(p => {
       const fade = .05;
       let o = 0;
@@ -467,7 +679,10 @@ function start() {
   /* Vues liées à la course */
   refs.push(p => {
     const accel = Math.min(p * FRAME_SPEED, 1);
-    requestFrame(Math.min(Math.floor(accel * FRAME_COUNT), FRAME_COUNT - 1));
+    const pos = accel * (FRAME_COUNT - 1);
+    /* Flou entre deux vues tant que ça bouge, vue franche dès l'arrêt :
+       un fondu figé à mi-chemin donnerait une image dédoublée. */
+    paintAt(settled ? Math.round(pos) : pos);
   });
 
   /* Entrées / sorties des sections */
@@ -478,25 +693,65 @@ function start() {
         if (!b.played) {
           b.played = true;
           b.tl.play();
+          /* Les animations portées par le CSS (le filet des repères qui se
+             trace) se déclenchent sur cette classe : elles suivent donc
+             exactement la même règle d'entrée que les autres, dans tous
+             les formats. */
+          b.section.classList.add('lit');
           b.counters.forEach(c => c.restart());
         }
       } else if (b.played) {
         b.played = false;
         b.tl.reverse();
+        b.section.classList.remove('lit');
         b.counters.forEach(c => c.pause(0));
       }
     }
   });
+
+  /* ── Second lissage, sur la scène elle-même ──
+
+     Le défilement, même lissé par Lenis, avance par paliers : un
+     événement de molette, une position, puis plus rien pendant quelques
+     images. Rendre la scène directement sur ces paliers, c'est afficher
+     la même vue plusieurs images de suite puis sauter — ce sont les
+     à-coups qu'on voyait pendant la décomposition.
+
+     La progression affichée poursuit donc la progression réelle à chaque
+     image, au lieu de lui être égale. La scène a toujours quelque chose à
+     dessiner entre deux événements, et la course des vues devient
+     continue. Le coût est un retard très court (~4 images), invisible à
+     l'œil mais suffisant pour effacer les paliers.
+
+     Monter SCENE_LERP vers 1 supprime ce lissage ; descendre vers 0.08
+     l'accentue au prix d'une traîne perceptible. */
+  const SCENE_LERP = REDUCED ? 1 : 0.18;
+  let sceneTarget = 0, sceneShown = 0, settled = false;
+
+  const renderScene = () => {
+    const d = sceneTarget - sceneShown;
+    if (Math.abs(d) < 0.00002) {
+      if (settled) return;
+      sceneShown = sceneTarget;
+      settled = true;
+    } else {
+      sceneShown += d * SCENE_LERP;
+      settled = false;
+    }
+    for (const fn of refs) fn(sceneShown);
+  };
 
   ScrollTrigger.create({
     trigger: container,
     start: 'top top',
     end: 'bottom bottom',
     scrub: true,
-    onUpdate: self => { const p = self.progress; for (const fn of refs) fn(p); },
+    onUpdate: self => { sceneTarget = self.progress; settled = false; },
     onLeave:     () => canvasWrap.classList.add('off'),
     onEnterBack: () => canvasWrap.classList.remove('off'),
   });
+
+  gsap.ticker.add(renderScene);
 
   for (const fn of refs) fn(0);
 
