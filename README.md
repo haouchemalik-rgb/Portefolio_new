@@ -292,6 +292,44 @@ Vérifié que les repères les plus proches restent à ~88 px l'un de
 l'autre une fois convertis en pixels à cette largeur : aucun risque de
 chevauchement.
 
+### Une animation peut élargir la page
+
+Sur téléphone, la page mesurait **467 px de large pour un écran de 411** :
+il fallait dézoomer pour en voir le bout, et le contenu paraissait alors
+tassé à gauche avec un vide à droite. La mise en page n'y était pour rien.
+
+Deux `transform` en étaient la cause — et **une transformation compte dans
+la zone de débordement d'un document**, même quand l'élément « rentre »
+une fois posé :
+
+| origine | mesure |
+|---|---|
+| entrées `slide-left` / `slide-right` (`x: ±80`) | colonne de 362 px décalée à 80 px → bord droit à 467 px |
+| `scale(1.07)` sur `.canvas-wrap` | cadre en `position: fixed; inset: 0`, donc 411 px → 440 px |
+
+Les sections en attente de leur tour restent posées à `x: ±80`. Sur un
+grand écran ces 80 px se perdent dans les marges ; sur 411 px, non.
+Les entrées de la traversée sont donc **strictement verticales sur petit
+écran** (`IS_SMALL` dans `buildSection`) : une translation verticale ne
+peut pas élargir une page.
+
+L'agrandissement de la scène, lui, est passé de `.canvas-wrap` — qui fait
+exactement la taille de la fenêtre — à `.canvas-stage`, qui vit à
+l'intérieur d'un `overflow: hidden` et s'y trouve confiné. Il transite par
+`--stage-scale` pour ne pas écraser le centrage en `translate(-50%, -50%)`.
+
+**Comment le retrouver.** Une page jetable chargeant le site dans une
+`<iframe>` plein écran, parcourant `document.querySelectorAll('*')` et
+listant chaque élément dont `getBoundingClientRect()` sort de
+`innerWidth` — triés par ampleur, avec bords et sélecteur. Ouverte depuis
+le téléphone concerné, elle a donné les deux coupables en une capture, là
+où trois tours de raisonnement à l'aveugle avaient échoué.
+
+À refaire de la même façon au prochain doute : sur ce genre de défaut, un
+relevé sur l'appareil vaut mieux que n'importe quelle déduction. Et un
+débordement se corrige à sa source — `overflow-x: clip` sur `html` et
+`body` n'est qu'un filet.
+
 ### `text-wrap: balance` raccourcit les lignes
 
 Sur téléphone, les titres de la traversée paraissaient collés à gauche,

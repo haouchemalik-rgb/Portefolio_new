@@ -174,6 +174,7 @@ const frames = new Array(FRAME_COUNT);
 /* ───────────────────────── Canvas ───────────────────────── */
 
 const canvasWrap = document.querySelector('.canvas-wrap');
+const canvasStage = document.querySelector('.canvas-stage');
 const canvas     = document.getElementById('canvas');
 /* `desynchronized` retire le tracé de la synchronisation avec le
    compositeur : le navigateur peut peindre dès que le drawImage est prêt,
@@ -419,17 +420,30 @@ function buildSection(section) {
 
   const tl = gsap.timeline({ paused: true });
 
-  /* En mouvement réduit, le texte ne se contentait plus d'arriver sans
-     élan : il n'arrivait pas du tout, il était simplement là. Or c'est le
-     DÉPLACEMENT que `prefers-reduced-motion` vise — glissements,
-     bascules, mises à l'échelle — pas le fait qu'un élément apparaisse.
+  /* En mouvement réduit, le texte est simplement VISIBLE.
 
-     Un fondu sur place respecte le réglage à la lettre et rend la
-     traversée lisible comme une traversée : chaque section arrive quand
-     on y parvient, au lieu d'être déjà écrite. Même principe que pour les
-     repères chiffrés. */
+     Un fondu sur place avait été tenté ici — il faisait dépendre
+     l'affichage du texte du bon déclenchement d'une animation. Au moindre
+     grain de sable, le texte ne réapparaissait jamais : page blanche.
+     Pour un contenu, l'état de repos doit être « lisible », jamais
+     « invisible en attendant que quelque chose se passe ».
+
+     Les animations complètes restent disponibles en désactivant le
+     réglage système « réduire les animations ». */
   if (REDUCED) {
-    tl.from(kids, { opacity: 0, stagger: .07, duration: .55, ease: 'power1.out' });
+    gsap.set(kids, { opacity: 1, x: 0, y: 0, scale: 1 });
+  } else if (IS_SMALL) {
+    /* Une seule entrée sur petit écran, et strictement VERTICALE.
+
+       Les entrées latérales posent le texte à `x: ±80` en attendant leur
+       tour. Sur un écran de 411 px, une colonne de 362 px décalée de 80 px
+       s'étend jusqu'à 467 px : la page devient plus large que la fenêtre,
+       et il faut dézoomer pour en voir le bout. Mesuré exactement ainsi.
+       `rotate-in` faisait de même en plus discret, par sa rotation.
+
+       Une translation verticale n'a pas ce défaut : elle ne peut pas
+       élargir la page. */
+    tl.from(kids, { y: 34, opacity: 0, stagger: .1, duration: .8, ease: 'power3.out' });
   } else {
     switch (type) {
       case 'fade-up':
@@ -639,15 +653,7 @@ function heroIntro() {
   const rest  = ['.hero-label', '.hero-tagline', '.hero-foot', '.scroll-cue']
     .map(s => document.querySelector(s)).filter(Boolean);
 
-  /* Fondu sur place plutôt que rien : voir `buildSection()`. Les mots du
-     titre montent d'en dessous en temps normal ; ici ils se révèlent. */
-  if (REDUCED) {
-    gsap.set([...words, ...rest], { y: 0 });
-    gsap.timeline({ delay: .15 })
-      .from(words, { opacity: 0, duration: .6, stagger: .06, ease: 'power1.out' })
-      .from(rest, { opacity: 0, duration: .6, stagger: .07, ease: 'power1.out' }, '-=.35');
-    return;
-  }
+  if (REDUCED) { gsap.set([...words, ...rest], { opacity: 1, y: 0 }); return; }
 
   gsap.timeline({ delay: .15 })
     .from(words, { yPercent: 112, duration: 1.15, stagger: .085, ease: 'power4.out' })
@@ -690,7 +696,17 @@ function start() {
 
     const r = REDUCED ? 1 : Math.min(1, Math.max(0, (p - .006) / .06));
     canvasWrap.style.opacity = r;
-    canvasWrap.style.transform = `scale(${1.07 - r * .07})`;
+    /* L'agrandissement porte sur la SCÈNE, pas sur son cadre.
+
+       `.canvas-wrap` est en `position: fixed; inset: 0` : il fait
+       exactement la taille de la fenêtre. Lui appliquer un `scale(1.07)`
+       le portait à 440 px sur un écran de 411 — la page s'en trouvait
+       élargie de 15 px. `.canvas-stage`, lui, vit à l'intérieur d'un
+       `overflow: hidden` : son agrandissement y est confiné.
+
+       Passé par une variable pour ne pas écraser le centrage en
+       `translate(-50%, -50%)` posé par la feuille de style. */
+    canvasStage.style.setProperty('--stage-scale', (1.07 - r * .07).toFixed(4));
   });
 
   /* Vues liées à la course */
@@ -945,20 +961,7 @@ function initTimeline() {
 
 function initReveals() {
   const items = document.querySelectorAll('.reveal');
-  /* Fondu sur place, sans la translation de 34 px : voir `buildSection()`. */
-  if (REDUCED) {
-    items.forEach(el => {
-      gsap.set(el, { y: 0 });
-      /* `fromTo` et non `to` : en mouvement réduit, la feuille de style
-         remet déjà `.reveal` à `opacity: 1` — filet de sécurité si le
-         script ne tourne pas. Un `to` vers 1 n'aurait donc rien fait. */
-      gsap.fromTo(el, { opacity: 0 }, {
-        opacity: 1, duration: .6, ease: 'power1.out',
-        scrollTrigger: { trigger: el, start: 'top 92%', once: true },
-      });
-    });
-    return;
-  }
+  if (REDUCED) { items.forEach(el => gsap.set(el, { opacity: 1, y: 0 })); return; }
 
   items.forEach(el => {
     gsap.to(el, {

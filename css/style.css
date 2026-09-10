@@ -72,7 +72,19 @@
 
 * { box-sizing: border-box; }
 
-html { -webkit-text-size-adjust: 100%; background: var(--bg); }
+/* `clip` plutôt que `hidden`, et sur les DEUX éléments.
+
+   `hidden` sur le seul `body` se propage à la fenêtre, ce qui marche en
+   théorie mais laisse plusieurs navigateurs mobiles considérer la page
+   comme plus large qu'elle ne l'est. `clip` coupe le débordement sans
+   créer de conteneur de défilement — donc sans casser le `position:
+   sticky` de la baie. La ligne `hidden` reste en repli. */
+html {
+  -webkit-text-size-adjust: 100%;
+  background: var(--bg);
+  overflow-x: hidden;
+  overflow-x: clip;
+}
 
 body {
   margin: 0;
@@ -82,6 +94,7 @@ body {
   font-size: 16px;
   line-height: 1.5;
   overflow-x: hidden;
+  overflow-x: clip;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -474,7 +487,10 @@ a { color: inherit; }
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  /* `--stage-scale` est pilotée au défilement : l'agrandissement doit
+     rester ici, à l'intérieur du cadre qui découpe, et non sur le cadre
+     lui-même qui a la taille de la fenêtre. */
+  transform: translate(-50%, -50%) scale(var(--stage-scale, 1));
   height: 96vh;
   width: auto;
   aspect-ratio: 716 / 1280;
@@ -1751,6 +1767,11 @@ a { color: inherit; }
      proches sur la baie restent à ~88 px l'un de l'autre une fois
      convertis en pixels à cette largeur — aucun risque de chevauchement. */
   .hotspot { width: 44px; height: 44px; font-size: .62rem; }
+  /* Le halo du cadre déborde de 30 % de sa largeur de chaque côté. Sur un
+     téléphone, cela fait ~109 px hors de l'écran : la page devenait plus
+     large que la fenêtre, et il fallait dézoomer pour en voir le bout.
+     Resserré à ce que la marge de page peut absorber. */
+  .rack-frame::before { inset: -10% -6%; }
   .legal-page { padding-top: 15vh; }
   .legal-rows > div { grid-template-columns: 1fr; gap: .3rem; }
 }
