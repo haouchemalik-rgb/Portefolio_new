@@ -146,8 +146,26 @@ a { color: inherit; }
   font-size: clamp(2.1rem, 3.5vw, 4.1rem);
   line-height: .98;
   letter-spacing: -.028em;
-  text-wrap: balance;
+  /* `balance` égalise la longueur des lignes — et pour y arriver, il les
+     RACCOURCIT toutes. Sur une colonne large, où le titre tient en une ou
+     deux lignes, c'est ce qu'on veut. Sur un téléphone, où le même titre
+     en fait trois ou quatre, chaque ligne se retrouve nettement plus
+     courte que le cadre : le texte paraît collé à gauche, avec une bande
+     vide sur toute la hauteur à droite. C'était le défaut constaté.
+
+     Par défaut, les lignes remplissent donc la largeur. `pretty` se
+     contente d'éviter un dernier mot seul, sans rien raccourcir ; là où
+     il n'est pas connu, la déclaration est ignorée et `normal` reste. */
+  text-wrap: normal;
+  text-wrap: pretty;
   color: var(--fg);
+}
+
+/* `balance` n'est rétabli que là où la colonne est assez large pour que
+   le titre tienne en peu de lignes — c'est-à-dire la mise en page en
+   couloirs, sur une fenêtre en paysage. */
+@media (min-width: 1181px) and (min-aspect-ratio: 3/2) {
+  .section-heading { text-wrap: balance; }
 }
 
 .section-body {
@@ -460,6 +478,11 @@ a { color: inherit; }
   height: 96vh;
   width: auto;
   aspect-ratio: 716 / 1280;
+  /* Garde-fou : la scène est dimensionnée par la hauteur, donc sur une
+     fenêtre très haute et étroite — un téléphone en « mode bureau », par
+     exemple — sa largeur dépassait celle de la fenêtre et la baie se
+     retrouvait rognée par `.canvas-wrap`. Sans effet en paysage. */
+  max-width: 96vw;
   /* Le fond de la vidéo (#0E0F14 → #3B383E) est celui de la page : un
      simple fondu des bords suffit à l'y poser, sans halo ni voile. */
   mask-image:
@@ -1588,6 +1611,43 @@ a { color: inherit; }
   .works,
   .repos { max-width: 1240px; margin-inline: auto; }
   .chapter-head { margin-bottom: 6vh; }
+}
+
+/* ─── Le texte en couloir suppose une fenêtre en paysage ───
+
+   C'est la baie verticale qui libère les deux couloirs : la largeur qu'ils
+   laissent au texte se déduit de la HAUTEUR de la fenêtre. Dès que celle-ci
+   approche du carré ou bascule en portrait, les couloirs se referment.
+   Mesuré, en gardant la mise en page en couloirs :
+
+   | fenêtre                | rapport | colonne | vide à droite |
+   |------------------------|---------|---------|---------------|
+   | 1920 × 1080            |  1,78   |  501 px |               |
+   | 1440 × 900             |  1,60   |  343 px |               |
+   | 1200 × 900             |  1,33   |  264 px |     381 px    |
+   | téléphone en paysage   |  2,22   |  261 px |     378 px    |
+   | téléphone « mode bureau » | 0,45 |  216 px |  la baie déborde |
+
+   En dessous de 3/2, le texte s'entasse dans une colonne trop étroite,
+   collé à gauche, avec un grand vide de l'autre côté. Le seul garde-fou
+   était un seuil de LARGEUR (820 px) : il ne voyait donc ni le téléphone
+   en paysage, ni le téléphone en « mode bureau » (où le navigateur annonce
+   ~980 px de large), ni une fenêtre d'ordinateur presque carrée.
+
+   Sous ce rapport, on repasse donc au texte pleine largeur sur voile,
+   comme sur téléphone. Au-dessus, rien ne change. */
+@media (max-aspect-ratio: 3/2) {
+  .scroll-section { padding: 0 !important; text-align: left; }
+  .align-left  .section-inner,
+  .align-right .section-inner { max-width: none; margin-inline: 0; }
+  .section-inner {
+    width: 100%;
+    padding: 22vh 6vw 8vh;
+    background: var(--veil);
+  }
+  .align-right .section-body { margin-left: 0; }
+  .section-stats { justify-content: flex-end; padding: 0; }
+  .stats-inner { padding: 18vh 6vw 8vh; }
 }
 
 @media (max-width: 1180px) {

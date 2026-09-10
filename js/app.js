@@ -419,8 +419,17 @@ function buildSection(section) {
 
   const tl = gsap.timeline({ paused: true });
 
+  /* En mouvement réduit, le texte ne se contentait plus d'arriver sans
+     élan : il n'arrivait pas du tout, il était simplement là. Or c'est le
+     DÉPLACEMENT que `prefers-reduced-motion` vise — glissements,
+     bascules, mises à l'échelle — pas le fait qu'un élément apparaisse.
+
+     Un fondu sur place respecte le réglage à la lettre et rend la
+     traversée lisible comme une traversée : chaque section arrive quand
+     on y parvient, au lieu d'être déjà écrite. Même principe que pour les
+     repères chiffrés. */
   if (REDUCED) {
-    gsap.set(kids, { opacity: 1, x: 0, y: 0, scale: 1 });
+    tl.from(kids, { opacity: 0, stagger: .07, duration: .55, ease: 'power1.out' });
   } else {
     switch (type) {
       case 'fade-up':
@@ -630,7 +639,15 @@ function heroIntro() {
   const rest  = ['.hero-label', '.hero-tagline', '.hero-foot', '.scroll-cue']
     .map(s => document.querySelector(s)).filter(Boolean);
 
-  if (REDUCED) { gsap.set([...words, ...rest], { opacity: 1, y: 0 }); return; }
+  /* Fondu sur place plutôt que rien : voir `buildSection()`. Les mots du
+     titre montent d'en dessous en temps normal ; ici ils se révèlent. */
+  if (REDUCED) {
+    gsap.set([...words, ...rest], { y: 0 });
+    gsap.timeline({ delay: .15 })
+      .from(words, { opacity: 0, duration: .6, stagger: .06, ease: 'power1.out' })
+      .from(rest, { opacity: 0, duration: .6, stagger: .07, ease: 'power1.out' }, '-=.35');
+    return;
+  }
 
   gsap.timeline({ delay: .15 })
     .from(words, { yPercent: 112, duration: 1.15, stagger: .085, ease: 'power4.out' })
@@ -928,7 +945,20 @@ function initTimeline() {
 
 function initReveals() {
   const items = document.querySelectorAll('.reveal');
-  if (REDUCED) { items.forEach(el => gsap.set(el, { opacity: 1, y: 0 })); return; }
+  /* Fondu sur place, sans la translation de 34 px : voir `buildSection()`. */
+  if (REDUCED) {
+    items.forEach(el => {
+      gsap.set(el, { y: 0 });
+      /* `fromTo` et non `to` : en mouvement réduit, la feuille de style
+         remet déjà `.reveal` à `opacity: 1` — filet de sécurité si le
+         script ne tourne pas. Un `to` vers 1 n'aurait donc rien fait. */
+      gsap.fromTo(el, { opacity: 0 }, {
+        opacity: 1, duration: .6, ease: 'power1.out',
+        scrollTrigger: { trigger: el, start: 'top 92%', once: true },
+      });
+    });
+    return;
+  }
 
   items.forEach(el => {
     gsap.to(el, {

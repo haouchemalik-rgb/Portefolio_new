@@ -235,8 +235,21 @@ Deux choses ne sont volontairement plus coupées par ce réglage :
   dix-neuf cellules : **c'est l'uniformité des courses qui fait la
   fluidité, pas la durée.** À retenir si l'on retouche `ROLL_CYCLES`.
 
-Le reste — défilement lissé, entrées de section, glissement des bandeaux —
-reste bien désactivé.
+- **les entrées de texte**, qui ne sont plus supprimées mais réduites à un
+  **fondu sur place** : plus de glissement, de bascule ni de mise à
+  l'échelle. C'est le déplacement que le réglage vise, pas le fait qu'un
+  élément apparaisse. Auparavant le texte était simplement déjà écrit, et
+  la traversée n'avait plus rien d'une traversée. Vaut pour les sections
+  (`buildSection`), le titre d'accueil (`heroIntro`) et les apparitions de
+  la page (`initReveals`).
+
+  Attention dans `initReveals` : la feuille de style remet `.reveal` à
+  `opacity: 1` sous ce réglage — filet de sécurité si le script ne tourne
+  pas. Il faut donc un `fromTo` partant de 0, un `to` vers 1 ne ferait
+  rien.
+
+Le reste — défilement lissé, parallaxe, glissement des bandeaux — reste
+bien désactivé.
 
 ## Netteté
 
@@ -278,6 +291,54 @@ réduites à 28 px dans une itération précédente, dans le mauvais sens.
 Vérifié que les repères les plus proches restent à ~88 px l'un de
 l'autre une fois convertis en pixels à cette largeur : aucun risque de
 chevauchement.
+
+### `text-wrap: balance` raccourcit les lignes
+
+Sur téléphone, les titres de la traversée paraissaient collés à gauche,
+avec une bande vide sur toute la hauteur à droite — alors que le bloc
+occupe bien toute la largeur moins 6 % de marge. Le coupable n'était pas
+la mise en page mais la coupure des lignes.
+
+`balance` égalise la longueur des lignes, et **pour y arriver il les
+raccourcit toutes**. Sur une colonne large, où le titre tient en une ou
+deux lignes, c'est exactement ce qu'on veut. Sur un téléphone, où « Tout
+ce que j'administre tient dans ce châssis. » en fait trois ou quatre,
+chaque ligne se retrouve nettement plus courte que le cadre — d'où la
+bande vide, régulière, sur toute la hauteur du titre.
+
+Par défaut les lignes remplissent donc la largeur (`pretty`, avec `normal`
+en repli là où il n'est pas connu). `balance` n'est rétabli qu'en
+`(min-width: 1181px) and (min-aspect-ratio: 3/2)`, c'est-à-dire là où la
+colonne est assez large pour que le titre tienne en peu de lignes.
+
+À retenir : `balance` se juge sur le **nombre de lignes** que le titre
+occupe réellement dans sa colonne, pas sur l'apparence du titre au repos.
+
+### Le couloir suppose une fenêtre en paysage
+
+La largeur laissée au texte se déduit de la **hauteur** de la fenêtre,
+puisque c'est la baie verticale qui libère les deux couloirs. Le garde-fou
+était un seuil de **largeur** (820 px) — deux grandeurs différentes, d'où
+des cas non couverts. Mesuré, mise en page en couloirs conservée :
+
+| fenêtre | rapport | colonne de texte | vide à droite |
+|---|---|---|---|
+| 1920 × 1080 | 1,78 | 501 px | — |
+| 1440 × 900 | 1,60 | 343 px | — |
+| 1200 × 900 | 1,33 | 264 px | 381 px |
+| téléphone en paysage | 2,22 | 261 px | 378 px |
+| téléphone « mode bureau » | 0,45 | 216 px | la baie déborde |
+
+Les trois derniers cas passaient à travers le seuil de largeur : un
+téléphone en « mode bureau » annonce ~980 px, un téléphone en paysage
+915 px, et une fenêtre d'ordinateur presque carrée bien davantage. Dans
+tous, le texte s'entassait à gauche avec un grand vide en face.
+
+Le basculement se fait donc maintenant sur le **rapport** de la fenêtre
+(`@media (max-aspect-ratio: 3/2)`) : en dessous, texte pleine largeur sur
+voile, comme sur téléphone. Au-dessus, rien ne change. `.canvas-stage`
+reçoit en plus un `max-width: 96vw`, sans quoi la baie — dimensionnée en
+`96vh` — dépassait la fenêtre sur un format très haut.
 
 ### Les couloirs latéraux suivent la baie
 
