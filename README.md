@@ -1,5 +1,9 @@
 # Portfolio — Malik Haouche
 
+> Administrateur systèmes & réseaux, orientation blue team · [GitHub](https://github.com/haouchemalik-rgb) · [LinkedIn](https://www.linkedin.com/in/masthen-haouche/)
+
+Site vitrine en HTML / CSS / JavaScript natif (GSAP, Lenis), sans framework.
+
 Site scroll-driven bâti autour de `baie.mp4` : la vidéo est décomposée en
 103 vues rendues sur un `<canvas>` dont la progression est liée au
 défilement. La baie se démonte au fil de la descente, puis devient une vue
@@ -40,11 +44,8 @@ Trois points ne sont pas cosmétiques :
 - **Aucun redimensionnement.** La source fait 716 × 1280, c'est un plafond
   dur. La réduire à l'encodage puis l'étirer à l'affichage était la cause
   d'un rendu mou constaté plus tôt.
-- **On coupe à 9,4 s** (`-t 9.4`). Au-delà, la vidéo fait apparaître des
-  étiquettes d'annotation dont le texte est de l'anglais inventé
-  (« Topicvise panelal », « Dhaproneret chipsets », « Neureaxrve PSU »).
-  Elles n'ont pas leur place sur un portfolio, et la vue est déjà
-  pleinement éclatée à cet instant.
+- **On coupe à 9,4 s** (`-t 9.4`) : la vue est alors pleinement éclatée, la suite
+  de la vidéo n'apporte rien au site.
 - **Qualité 82, et non 93.** La séquence pesait 8,5 Mo ; elle en pèse 4,5.
   Comparées au format d'affichage réel (~483 px de large), les deux
   qualités sont indiscernables — la vérification a été faite en recadrant
