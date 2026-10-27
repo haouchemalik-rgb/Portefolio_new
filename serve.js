@@ -9,11 +9,11 @@ http.createServer((req, res) => {
   let p = decodeURIComponent(url.parse(req.url).pathname);
   if (p === '/') p = '/index.html';
   const file = path.join(ROOT, p);
-  if (!file.startsWith(ROOT)) { res.writeHead(403).end('forbidden'); return; }
+  if (file !== ROOT && !file.startsWith(ROOT + path.sep)) { res.writeHead(403).end('forbidden'); return; }
   fs.readFile(file, (err, buf) => {
     if (err) { res.writeHead(404, {'Content-Type':'text/plain'}).end('404 ' + p); return; }
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream',
       'Cache-Control': 'no-cache' });
     res.end(buf);
   });
-}).listen(PORT, () => console.log('http://localhost:' + PORT));
+}).listen(PORT, '127.0.0.1', () => console.log('http://localhost:' + PORT)); // écoute locale uniquement
