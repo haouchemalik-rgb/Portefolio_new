@@ -36,7 +36,7 @@ const GROUPES = {
       ['Serveurs physiques et virtuels', 'Solide'],
       ['Sauvegarde et restauration', 'Solide'],
       ['Longhorn · stockage distribué', 'Confirmé'],
-      ['Postes de travail · MacOS', 'Confirmé'],
+      ['Postes de travail · macOS', 'Confirmé'],
       ['Active Directory', 'En cours'],
     ],
   },
